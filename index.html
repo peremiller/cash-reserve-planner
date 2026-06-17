@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cash Reserve Planner</title>
+<script src="https://accounts.google.com/gsi/client" async></script>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel2: #1c2330;
+    --border: #2a3340;
+    --text: #e6edf3;
+    --muted: #8b97a7;
+    --accent: #4ea1ff;
+    --green: #3fb950;
+    --amber: #d29922;
+    --red: #f85149;
+    --b1: #4ea1ff;  /* checking */
+    --b2: #a371f7;  /* t-bill ladder */
+    --b3: #3fb950;  /* bond fund */
+    --b4: #d29922;  /* mm buffer */
+    --shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 20% -10%, #16203020, transparent), var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+  header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  header p { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+  }
+  .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin: 0 0 14px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+  label:first-of-type { margin-top: 0; }
+  .input-row { position: relative; }
+  .input-row .prefix { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 15px; }
+  input[type="date"] {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 11px 12px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  input[type="date"]:focus { border-color: var(--accent); }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(0.7); cursor: pointer; }
+  .agebadge { float: right; color: var(--green); font-weight: 650; text-transform: none; letter-spacing: 0; font-size: 12px; }
+  .gconnect { margin-top: 14px; }
+  .gbtn { display: inline-flex; align-items: center; gap: 9px; background: #fff; color: #1f1f1f; border: 1px solid #dadce0; border-radius: 8px; padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer; transition: box-shadow .15s, opacity .15s; }
+  .gbtn:hover { box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+  .gbtn:disabled { opacity: .55; cursor: default; }
+  .glink { font-size: 12px; color: var(--accent); margin-left: 10px; text-decoration: none; }
+  .glink:hover { text-decoration: underline; }
+  .gstatus { font-size: 12px; margin-top: 8px; min-height: 1px; }
+  .gstatus.ok { color: var(--green); }
+  .gstatus.err { color: var(--red); }
+  .gstatus.work { color: var(--amber); }
+  .gpanel { margin-top: 12px; padding: 13px; background: var(--panel2); border: 1px solid var(--border); border-radius: 9px; }
+  .gpanel-title { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .gclientid { width: 100%; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 7px; padding: 9px 10px; font-size: 12px; font-family: ui-monospace, Menlo, monospace; outline: none; }
+  .gclientid:focus { border-color: var(--accent); }
+  .gsave { margin-top: 8px; background: var(--accent); color: #08111c; border: none; border-radius: 7px; padding: 8px 13px; font-size: 12px; font-weight: 650; cursor: pointer; }
+  .gsteps { margin: 12px 0 0; padding-left: 18px; font-size: 12px; color: var(--muted); line-height: 1.55; }
+  .gsteps li { margin-bottom: 5px; }
+  .gsteps code { background: var(--bg); padding: 1px 5px; border-radius: 4px; font-size: 11px; color: var(--text); }
+  .gsteps a { color: var(--accent); }
+  input[type="number"], select {
+    width: 100%;
+    background: var(--panel2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 9px;
+    padding: 11px 12px 11px 26px;
+    font-size: 15px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  select { padding-left: 12px; }
+  input[type="number"]:focus, select:focus { border-color: var(--accent); }
+  .toggle { display: flex; align-items: center; gap: 9px; margin-top: 16px; cursor: pointer; }
+  .toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
+  .toggle span { font-size: 13px; color: var(--text); }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* Summary tiles */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .tile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .tile .k { font-size: 12px; color: var(--muted); }
+  .tile .v { font-size: 22px; font-weight: 650; margin-top: 2px; letter-spacing: -0.01em; }
+  .tile .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* Allocation bar */
+  .bar { display: flex; height: 34px; border-radius: 9px; overflow: hidden; border: 1px solid var(--border); margin: 6px 0 14px; }
+  .bar > div { display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #08111c; white-space: nowrap; transition: width .4s ease; min-width: 0; }
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; }
+  .legend .item { display: flex; align-items: center; gap: 7px; font-size: 13px; }
+  .dot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+  /* Bucket rows */
+  .bucket { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--border); }
+  .bucket:first-child { border-top: none; }
+  .bucket .badge { width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-weight: 700; color: #08111c; flex: none; }
+  .bucket .meta { flex: 1; min-width: 0; }
+  .bucket .meta .name { font-weight: 600; font-size: 14px; }
+  .bucket .meta .desc { font-size: 12px; color: var(--muted); }
+  .bucket .amt { text-align: right; }
+  .bucket .amt .big { font-weight: 650; font-size: 16px; }
+  .bucket .amt .mo { font-size: 12px; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+  .pill.next { background: #1f6feb33; color: var(--accent); border: 1px solid #1f6feb55; }
+  .pill.done { background: #23863633; color: var(--green); border: 1px solid #2386364d; }
+
+  .section { margin-top: 20px; }
+  .section h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  .note { font-size: 13px; color: var(--muted); background: var(--panel2); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 8px; padding: 11px 13px; margin-top: 12px; }
+  .warn { border-left-color: var(--amber); }
+  .ok { border-left-color: var(--green); }
+  .danger { border-left-color: var(--red); }
+  .foot { color: var(--muted); font-size: 12px; margin-top: 28px; text-align: center; }
+  b.acc { color: var(--text); font-weight: 650; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Cash Reserve Planner</h1>
+    <p>A layered liquidity plan: a 3-bucket cash reserve, a 24-month bear-market buffer, and an automatic Q4 cash-conversion schedule so you never sell within 12 months of need.</p>
+  </header>
+
+  <div class="grid">
+    <!-- INPUTS -->
+    <div class="card">
+      <h2>Your Numbers</h2>
+
+      <label>Date of birth <span id="ageBadge" class="agebadge"></span></label>
+      <input type="date" id="dob" value="" max="2026-06-15" />
+      <div class="hint" id="dobHint">Enter your date of birth, or connect Google below to auto-detect it.</div>
+
+      <div class="gconnect">
+        <button type="button" id="gBtn" class="gbtn">
+          <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+          <span id="gBtnLabel">Connect Google to auto-detect</span>
+        </button>
+        <a href="#" id="gSettings" class="glink">setup</a>
+        <div id="gStatus" class="gstatus"></div>
+
+        <div id="gPanel" class="gpanel" hidden>
+          <div class="gpanel-title">Google OAuth Client ID</div>
+          <input type="text" id="gClientId" class="gclientid" placeholder="1234...apps.googleusercontent.com" autocomplete="off" spellcheck="false" />
+          <button type="button" id="gSave" class="gsave">Save Client ID</button>
+          <ol class="gsteps">
+            <li>Open <a href="https://console.cloud.google.com/apis/credentials" target="_blank" rel="noopener">Google Cloud Console → Credentials</a> (create a project if needed).</li>
+            <li>Enable the <a href="https://console.cloud.google.com/apis/library/people.googleapis.com" target="_blank" rel="noopener">People API</a>.</li>
+            <li>OAuth consent screen → add scope <code>.../auth/user.birthday.read</code> and add yourself as a <b>Test user</b>.</li>
+            <li>Create credentials → <b>OAuth client ID</b> → <b>Web application</b>. Under <b>Authorized JavaScript origins</b> add the origin you open this app from — <code id="gOrigin">http://localhost:4179</code>.</li>
+            <li>Copy the Client ID, paste it above, and Save. Then click <b>Connect Google</b>.</li>
+          </ol>
+        </div>
+      </div>
+
+      <label>Target retirement age</label>
+      <input type="number" id="retage" value="65" min="40" max="90" step="1" />
+      <div class="hint" id="retHint">Drives years-to-retirement and the buffer glide path.</div>
+
+      <label>Bear-market buffer basis</label>
+      <select id="bufferBasis">
+        <option value="fixed" selected>Fixed — always 24 months</option>
+        <option value="age">Age-based — follow glide path</option>
+      </select>
+      <div class="hint">Fixed keeps your 24-month rule. Age-based sizes the actual buffer to your retirement horizon (the amber curve).</div>
+
+      <label>Spending</label>
+      <div class="input-row">
+        <span class="prefix">$</span>
+        <input type="number" id="spend" value="5000" min="0" step="100" />
+      </div>
+      <select id="spendPeriod" style="margin-top:8px">
+        <option value="month" selected>per month</option>
+        <option value="year">per year</option>
+      </select>
+
+      <label>Total reserve assets available</label>
+      <div class="input-row">
+        <span class="prefix">$</span>
+        <input type="number" id="assets" value="200000" min="0" step="1000" />
+      </div>
+      <div class="hint">The pool you're allocating across the three buckets.</div>
+
+      <label>T-bill ladder rungs</label>
+      <select id="rungs">
+        <option value="3">Quarterly (6 rungs · 3-mo apart)</option>
+        <option value="1">Monthly (18 rungs)</option>
+        <option value="6">Semiannual (3 rungs)</option>
+      </select>
+
+      <label class="toggle">
+        <input type="checkbox" id="bufferSeparate" />
+        <span>Fund 24-mo buffer separately</span>
+      </label>
+      <div class="hint">Off: the buffer is satisfied by the 24 months already held in checking + T-bills. On: it's an additional money-market reserve held on top.</div>
+    </div>
+
+    <!-- OUTPUTS -->
+    <div>
+      <div class="tiles">
+        <div class="tile"><div class="k">Monthly spending</div><div class="v" id="t-mo">—</div><div class="sub" id="t-yr">—</div></div>
+        <div class="tile"><div class="k">Reserve runway</div><div class="v" id="t-runway">—</div><div class="sub">months of spending covered</div></div>
+        <div class="tile"><div class="k">Bear-market buffer</div><div class="v" id="t-buffer">—</div><div class="sub" id="t-buffersub">24 months · money-market</div></div>
+        <div class="tile"><div class="k">Next Q4 conversion</div><div class="v" id="t-q4">—</div><div class="sub" id="t-q4sub">12 months to cash</div></div>
+        <div class="tile"><div class="k">Years to retirement</div><div class="v" id="t-ret">—</div><div class="sub" id="t-retsub">—</div></div>
+      </div>
+
+      <div class="card">
+        <h2>Allocation</h2>
+        <div class="bar" id="bar"></div>
+        <div class="legend" id="legend"></div>
+
+        <div style="margin-top:16px">
+          <div class="bucket">
+            <div class="badge" style="background:var(--b1)">1</div>
+            <div class="meta"><div class="name">Checking — operating cash</div><div class="desc">6 months of spending, instantly accessible</div></div>
+            <div class="amt"><div class="big" id="b1">—</div><div class="mo">6 mo</div></div>
+          </div>
+          <div class="bucket">
+            <div class="badge" style="background:var(--b2)">2</div>
+            <div class="meta"><div class="name">T-bill ladder</div><div class="desc">18 months, maturities staggered for rolling liquidity</div></div>
+            <div class="amt"><div class="big" id="b2">—</div><div class="mo">18 mo</div></div>
+          </div>
+          <div class="bucket">
+            <div class="badge" style="background:var(--b3)">3</div>
+            <div class="meta"><div class="name">Short-duration bond fund</div><div class="desc">Everything beyond the first 24 months</div></div>
+            <div class="amt"><div class="big" id="b3">—</div><div class="mo" id="b3mo">—</div></div>
+          </div>
+        </div>
+        <div class="note" id="allocNote"></div>
+      </div>
+
+      <div class="card section">
+        <h2>① T-bill ladder &mdash; <span id="ladderCount"></span></h2>
+        <table>
+          <thead><tr><th>Rung</th><th>Matures</th><th class="num">Months out</th><th class="num">Amount</th></tr></thead>
+          <tbody id="ladderBody"></tbody>
+        </table>
+        <div class="note">Each rung holds an equal slice and matures in sequence. As a rung matures it refills checking (or rolls forward), so cash keeps surfacing without ever selling a security early.</div>
+      </div>
+
+      <div class="card section">
+        <h2>② 24-month bear-market buffer</h2>
+        <div id="bufferBody"></div>
+      </div>
+
+      <div class="card section">
+        <h2>Buffer glide path &mdash; <span id="glideSub"></span></h2>
+        <p class="hint" style="margin-top:-2px">Sequence-of-returns risk &mdash; a crash early in retirement doing lasting damage &mdash; peaks in the decade <i>around</i> your retirement date. The cushion you need isn't constant: lighter while you're still earning, heaviest at the handoff, easing later.</p>
+        <div id="glideWrap"></div>
+        <div class="note" id="glideNote"></div>
+      </div>
+
+      <div class="card section">
+        <h2>③ Q4 cash-conversion schedule</h2>
+        <p class="hint" style="margin-top:-2px">Every fourth quarter, move the <b class="acc">next calendar year's</b> full spending into cash. Anything you'll spend within 12 months is already in cash before the year starts &mdash; so you never have to sell into a down market.</p>
+        <table>
+          <thead><tr><th>Convert during</th><th>Funds</th><th class="num">Amount to cash</th><th>Status</th></tr></thead>
+          <tbody id="q4Body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">All figures are illustrative planning estimates &mdash; not financial advice. Saved locally in your browser.</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const fmt = n => "$" + Math.round(n).toLocaleString("en-US");
+const fmtK = n => {
+  if (n >= 1000) return "$" + (n/1000).toFixed(n >= 100000 ? 0 : 1) + "k";
+  return "$" + Math.round(n);
+};
+const TODAY = new Date(2026, 5, 15); // app context date: 2026-06-15
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+const inputs = ["dob","retage","bufferBasis","spend","spendPeriod","assets","rungs","bufferSeparate"];
+
+// Recommended buffer (months of spending) for a given age, given the retirement age.
+// Light during accumulation, ramps to a peak at retirement, eases a decade later.
+function recBufferMonths(age, retAge) {
+  const y = retAge - age;            // years until retirement (negative = already retired)
+  if (y > 10) return 12;             // accumulation: cash drags returns, keep it lean
+  if (y >= 0) return 12 + (10 - y) / 10 * 12;  // red-zone approach: 12 → 24 at retirement
+  const into = -y;                   // years into retirement
+  if (into <= 10) return 24;         // first decade: sequence risk highest, hold the line
+  if (into <= 20) return 24 - (into - 10) / 10 * 6;  // ease 24 → 18
+  return 18;
+}
+
+function ageFromDob(dobStr) {
+  if (!dobStr) return null;
+  const [y, m, d] = dobStr.split("-").map(Number);
+  if (!y || !m || !d) return null;
+  let age = TODAY.getFullYear() - y;
+  const hadBirthday = (TODAY.getMonth() + 1 > m) || (TODAY.getMonth() + 1 === m && TODAY.getDate() >= d);
+  if (!hadBirthday) age -= 1;
+  const next = new Date(TODAY.getFullYear() + (hadBirthday ? 1 : 0), m - 1, d);
+  return { age, next };
+}
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem("crp") || "{}");
+    for (const k in s) { const el = $(k); if (!el) continue; el.type === "checkbox" ? el.checked = s[k] : el.value = s[k]; }
+  } catch (e) {}
+}
+function save() {
+  const s = {};
+  inputs.forEach(k => { const el = $(k); s[k] = el.type === "checkbox" ? el.checked : el.value; });
+  localStorage.setItem("crp", JSON.stringify(s));
+}
+
+function compute() {
+  const raw = parseFloat($("spend").value) || 0;
+  const perMonth = $("spendPeriod").value === "year" ? raw / 12 : raw;
+  const annual = perMonth * 12;
+  const assets = parseFloat($("assets").value) || 0;
+  const rungSpacing = parseInt($("rungs").value, 10);
+  const bufferSeparate = $("bufferSeparate").checked;
+
+  // Age
+  const a = ageFromDob($("dob").value);
+  if (a) {
+    $("ageBadge").textContent = "Age " + a.age;
+    const days = Math.round((a.next - TODAY) / 86400000);
+    $("dobHint").textContent = `Turning ${a.age + 1} on ${MONTHS[a.next.getMonth()]} ${a.next.getDate()}, ${a.next.getFullYear()} — ${days} days away.`;
+  } else {
+    $("ageBadge").textContent = "";
+    $("dobHint").textContent = "Enter your date of birth.";
+  }
+
+  const b1 = perMonth * 6;            // checking
+  const b2 = perMonth * 18;           // t-bill ladder
+  const b3 = Math.max(0, assets - b1 - b2); // bond fund remainder
+  const reserveCore = Math.min(assets, b1 + b2);
+  const runwayMonths = perMonth > 0 ? assets / perMonth : 0;
+
+  // Buffer sizing — fixed 24-mo rule, or age-based glide path
+  const retAge = parseInt($("retage").value, 10) || 65;
+  const basis = $("bufferBasis").value;
+  const ageBased = basis === "age" && a;
+  const bufferMonths = ageBased ? Math.round(recBufferMonths(a.age, retAge)) : 24;
+  const buffer = perMonth * bufferMonths;
+
+  // Tiles
+  $("t-mo").textContent = fmt(perMonth);
+  $("t-yr").textContent = fmt(annual) + " / yr";
+  $("t-runway").textContent = (runwayMonths).toFixed(1) + " mo";
+  $("t-buffer").textContent = fmt(buffer);
+  $("t-buffersub").textContent = `${bufferMonths} months · ${ageBased ? "age-based" : "fixed rule"}`;
+
+  // Allocation bar — use actual funded amounts capped to assets
+  const f1 = Math.min(b1, assets);
+  const f2 = Math.min(b2, Math.max(0, assets - f1));
+  const f3 = b3;
+  const total = Math.max(assets, 1);
+  const segs = [
+    {v: f1, c: "var(--b1)", label: "Checking"},
+    {v: f2, c: "var(--b2)", label: "T-bills"},
+    {v: f3, c: "var(--b3)", label: "Bonds"},
+  ];
+  $("bar").innerHTML = segs.map(s => {
+    const pct = (s.v/total*100);
+    return pct > 0.5 ? `<div style="width:${pct}%;background:${s.c}">${pct>9?Math.round(pct)+"%":""}</div>` : "";
+  }).join("");
+  const legendItems = [
+    ["var(--b1)","Checking · 6 mo", f1],
+    ["var(--b2)","T-bill ladder · 18 mo", f2],
+    ["var(--b3)","Short-duration bonds", f3],
+  ];
+  $("legend").innerHTML = legendItems.map(([c,l,v]) =>
+    `<div class="item"><span class="dot" style="background:${c}"></span>${l} &mdash; <b class="acc">${fmt(v)}</b></div>`).join("");
+
+  $("b1").textContent = fmt(f1);
+  $("b2").textContent = fmt(f2);
+  $("b3").textContent = fmt(f3);
+  $("b3mo").textContent = perMonth > 0 ? (f3/perMonth).toFixed(1) + " mo" : "—";
+
+  // Allocation note
+  let note = "", cls = "note ok";
+  if (assets < b1) { cls = "note danger"; note = `Assets cover only ${runwayMonths.toFixed(1)} months &mdash; below the 6-month checking floor. Build the operating cash bucket first.`; }
+  else if (assets < b1 + b2) { cls = "note warn"; note = `Assets fill checking and partially fund the T-bill ladder (${fmt(f2)} of ${fmt(b2)}). No bond-fund bucket yet &mdash; reach 24 months (${fmt(b1+b2)}) to complete the core reserve.`; }
+  else { note = `Core 24-month reserve fully funded (${fmt(b1+b2)}). The remaining <b class="acc">${fmt(f3)}</b> (${(f3/perMonth).toFixed(1)} mo) sits in short-duration bonds for a little extra yield while staying liquid.`; }
+  $("allocNote").className = cls;
+  $("allocNote").innerHTML = note;
+
+  // T-bill ladder
+  const rungCount = Math.round(18 / rungSpacing);
+  const perRung = f2 / Math.max(rungCount,1);
+  $("ladderCount").textContent = `${rungCount} rungs · ${fmt(f2)}`;
+  let rows = "";
+  for (let i = 1; i <= rungCount; i++) {
+    const monthsOut = i * rungSpacing;
+    const d = new Date(TODAY.getFullYear(), TODAY.getMonth() + monthsOut, 1);
+    rows += `<tr><td>#${i}</td><td>${MONTHS[d.getMonth()]} ${d.getFullYear()}</td><td class="num">${monthsOut} mo</td><td class="num">${fmt(perRung)}</td></tr>`;
+  }
+  $("ladderBody").innerHTML = rows;
+
+  // Buffer
+  const heldLiquid = f1 + f2; // checking + t-bills = up to 24 months
+  const basisTag = ageBased
+    ? `<span class="pill next" style="margin-left:8px">age-based · ${bufferMonths} mo</span>`
+    : `<span class="pill done" style="margin-left:8px">fixed · 24 mo</span>`;
+  let bufHtml = `<div style="margin:-4px 0 10px">Target buffer: <b class="acc">${fmt(buffer)}</b> (${bufferMonths} months)${basisTag}</div>`;
+  if (bufferSeparate) {
+    const totalYears = ((6 + 18 + bufferMonths) / 12).toFixed(1);
+    bufHtml += `<div class="bucket" style="border:none;padding-top:0">
+        <div class="badge" style="background:var(--b4)">$</div>
+        <div class="meta"><div class="name">Dedicated money-market buffer</div><div class="desc">Held on top of the 3-bucket reserve</div></div>
+        <div class="amt"><div class="big">${fmt(buffer)}</div><div class="mo">${bufferMonths} mo</div></div>
+      </div>
+      <div class="note warn">You're earmarking an <b class="acc">additional</b> ${fmt(buffer)} in money-market funds beyond the reserve buckets. Total liquid set-aside: <b class="acc">${fmt(reserveCore + buffer)}</b> &mdash; about <b class="acc">${totalYears} years</b> of spending that never touches the market.</div>`;
+  } else {
+    const covered = Math.min(heldLiquid, buffer);
+    const pct = buffer > 0 ? Math.min(100, covered/buffer*100) : 0;
+    const ok = covered >= buffer - 0.5;
+    const lead = ageBased
+      ? `Your age-based target is <b class="acc">${bufferMonths} months</b>. The 6 months in checking plus 18 months of T-bills (24 months in all) more than cover it &mdash; keep these in cash &amp; cash-equivalents so a prolonged downturn never forces a sale.`
+      : `The 6 months in checking plus 18 months of T-bills already equal 24 months of spending &mdash; that <i>is</i> your bear-market buffer. Keep these in cash &amp; cash-equivalents (the ladder maturities feed a money-market sweep) so a prolonged downturn never forces a sale.`;
+    bufHtml += `<p class="hint" style="margin-top:0">${lead}</p>
+      <div class="bar" style="height:26px"><div style="width:${pct}%;background:var(--b4);color:#08111c">${Math.round(pct)}% of ${bufferMonths} mo</div></div>
+      <div class="note ${ok?'ok':'warn'}">${ok
+        ? `Buffer fully covered: <b class="acc">${fmt(covered)}</b> across checking + T-bills meets the ${bufferMonths}-month target${ageBased && covered > buffer + 0.5 ? ` with <b class="acc">${fmt(covered-buffer)}</b> to spare` : ``}. Nothing extra needed.`
+        : `Currently <b class="acc">${fmt(covered)}</b> of the ${fmt(buffer)} buffer is in place (${(covered/perMonth).toFixed(1)} of ${bufferMonths} mo). Add ${fmt(buffer-covered)} to reach a full ${bufferMonths}-month cushion.`}</div>`;
+  }
+  $("bufferBody").innerHTML = bufHtml;
+
+  // Q4 conversion schedule
+  let q4 = "";
+  const curY = TODAY.getFullYear();
+  const beforeQ4 = TODAY.getMonth() < 9; // Oct = month 9
+  for (let i = 0; i < 5; i++) {
+    const convYear = curY + i;               // Q4 of this year...
+    const fundsYear = convYear + 1;          // ...funds next year's spending
+    let status;
+    if (convYear < curY || (convYear === curY && !beforeQ4)) {
+      status = `<span class="pill done">past / in progress</span>`;
+    } else if (convYear === curY || (convYear === curY && beforeQ4)) {
+      status = i === 0 ? `<span class="pill next">next up</span>` : `<span class="pill next">upcoming</span>`;
+    } else {
+      status = `<span style="color:var(--muted)">scheduled</span>`;
+    }
+    if (i === 0) status = beforeQ4 ? `<span class="pill next">next up</span>` : `<span class="pill done">window passed</span>`;
+    q4 += `<tr><td>Q4 ${convYear} <span class="hint">(Oct–Dec)</span></td><td>${fundsYear} spending</td><td class="num">${fmt(annual)}</td><td>${status}</td></tr>`;
+  }
+  $("q4Body").innerHTML = q4;
+
+  // Next Q4 tile
+  const nextConvYear = beforeQ4 ? curY : curY + 1;
+  $("t-q4").textContent = "Q4 " + nextConvYear;
+  $("t-q4sub").textContent = `${fmt(annual)} → cash for ${nextConvYear+1}`;
+
+  // ---- Retirement horizon + buffer glide path ----
+  renderRetirement(a, retAge, perMonth, bufferMonths, ageBased);
+
+  save();
+}
+
+function renderRetirement(a, retAge, perMonth, planMonths, ageBased) {
+  planMonths = planMonths || 24;
+  if (!a) {
+    $("t-ret").textContent = "—";
+    $("t-retsub").textContent = "set date of birth";
+    $("glideSub").textContent = "";
+    $("glideWrap").innerHTML = "";
+    $("glideNote").className = "note warn";
+    $("glideNote").innerHTML = "Set your date of birth above to see your buffer glide path.";
+    return;
+  }
+  const age = a.age;
+  const yearsToRet = retAge - age;
+  const birthYear = parseInt(($("dob").value || "").slice(0, 4), 10) || (TODAY.getFullYear() - age);
+  const retYear = birthYear + retAge;
+
+  // Tile
+  if (yearsToRet > 0) { $("t-ret").textContent = yearsToRet + " yrs"; $("t-retsub").textContent = `retire ~${retYear}`; }
+  else if (yearsToRet === 0) { $("t-ret").textContent = "This year"; $("t-retsub").textContent = `age ${retAge} in ${retYear}`; }
+  else { $("t-ret").textContent = "Retired"; $("t-retsub").textContent = `since ${retYear}`; }
+
+  // ---- SVG glide path ----
+  const W = 620, H = 184, L = 44, R = 14, T = 16, B = 30, yMaxM = 30;
+  const ageMin = age, ageMax = Math.max(95, retAge + 20);
+  const xs = v => L + (v - ageMin) / (ageMax - ageMin) * (W - L - R);
+  const ys = m => T + (1 - m / yMaxM) * (H - T - B);
+  const ybase = ys(0);
+
+  const pts = [];
+  for (let g = ageMin; g <= ageMax; g++) pts.push([xs(g), ys(recBufferMonths(g, retAge))]);
+  const curve = pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ");
+  const area = `M ${pts[0][0].toFixed(1)},${ybase.toFixed(1)} L ${curve} L ${pts[pts.length-1][0].toFixed(1)},${ybase.toFixed(1)} Z`;
+
+  const recNow = recBufferMonths(age, retAge);
+  const hereX = xs(age), hereY = ys(recNow);
+  const retInDomain = retAge >= ageMin && retAge <= ageMax;
+
+  // y gridlines at 0/12/24
+  const yLines = [0, 12, 24].map(m =>
+    `<line x1="${L}" y1="${ys(m).toFixed(1)}" x2="${W-R}" y2="${ys(m).toFixed(1)}" stroke="#2a3340" stroke-width="1"/>`
+    + `<text x="${L-7}" y="${(ys(m)+4).toFixed(1)}" fill="#8b97a7" font-size="10" text-anchor="end">${m}</text>`
+  ).join("");
+
+  // x ticks
+  const xTicks = [ageMin, retAge, ageMax].filter((v,i,arr)=>arr.indexOf(v)===i && v>=ageMin && v<=ageMax).map(g =>
+    `<text x="${xs(g).toFixed(1)}" y="${H-10}" fill="#8b97a7" font-size="10" text-anchor="middle">${g}</text>`
+  ).join("");
+
+  const planLabel = ageBased ? `your buffer · tracks curve` : `your plan · ${planMonths} mo`;
+  const planLine = ageBased ? "" :
+    `<line x1="${L}" y1="${ys(planMonths).toFixed(1)}" x2="${W-R}" y2="${ys(planMonths).toFixed(1)}" stroke="#4ea1ff" stroke-width="1.5" stroke-dasharray="5 4"/>`
+    + `<text x="${W-R}" y="${(ys(planMonths)-5).toFixed(1)}" fill="#4ea1ff" font-size="10" text-anchor="end">${planLabel}</text>`;
+
+  const retMarker = retInDomain
+    ? `<line x1="${xs(retAge).toFixed(1)}" y1="${T}" x2="${xs(retAge).toFixed(1)}" y2="${ybase.toFixed(1)}" stroke="#3fb950" stroke-width="1.5" stroke-dasharray="3 3"/>`
+      + `<text x="${xs(retAge).toFixed(1)}" y="${T+10}" fill="#3fb950" font-size="10" text-anchor="middle">retire @ ${retAge}</text>`
+    : "";
+
+  const here = `<circle cx="${hereX.toFixed(1)}" cy="${hereY.toFixed(1)}" r="5" fill="#d29922" stroke="#0d1117" stroke-width="2"/>`
+    + `<text x="${(hereX+8).toFixed(1)}" y="${(hereY-8).toFixed(1)}" fill="#e6edf3" font-size="10.5" font-weight="600">you · ${Math.round(recNow)} mo</text>`;
+
+  $("glideSub").textContent = `recommended cushion by age`;
+  $("glideWrap").innerHTML =
+    `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block;margin-top:6px" xmlns="http://www.w3.org/2000/svg">`
+    + yLines
+    + `<path d="${area}" fill="#d2992222"/>`
+    + `<polyline points="${curve}" fill="none" stroke="#d29922" stroke-width="2.5"/>`
+    + planLine + retMarker + here + xTicks
+    + `<text x="${L}" y="${H-10}" fill="#8b97a7" font-size="10" text-anchor="start">age →</text>`
+    + `</svg>`;
+
+  // Note
+  const recAmt = Math.round(recNow) * perMonth, planAmt = planMonths * perMonth;
+  const modeTag = ageBased
+    ? `Your buffer is <b class="acc">tracking this curve</b>, so it currently targets <b class="acc">${Math.round(recNow)} months</b> (${fmt(recAmt)}).`
+    : `Your plan holds a fixed <b class="acc">${planMonths} months</b> (${fmt(planAmt)}).`;
+  let cls = "note", msg;
+  if (yearsToRet > 10) {
+    cls = ageBased ? "note ok" : "note warn";
+    const contrast = ageBased
+      ? `That frees roughly <b class="acc">${fmt(planAmt - recAmt)}</b> versus the fixed 24-month rule to stay invested while you're still earning.`
+      : `A <b class="acc">${Math.round(recNow)}-month</b> buffer (${fmt(recAmt)}) would cover today's sequence risk — the fixed rule parks an extra <b class="acc">${fmt(planAmt-recAmt)}</b> in cash that could otherwise compound.`;
+    msg = `You're <b class="acc">${yearsToRet} years</b> from retirement — deep in accumulation. ${modeTag} ${contrast} The full 24-month cushion starts earning its keep around <b class="acc">${retYear-10}</b> (10 years out).`;
+  } else if (yearsToRet >= 0) {
+    cls = "note danger";
+    msg = `You're entering the <b class="acc">retirement red zone</b> (${yearsToRet} yrs out). ${modeTag} This is exactly when a full ~24-month buffer matters most — a bad market right after you stop earning is the worst case. Hold it and don't let it slip.`;
+  } else if (-yearsToRet <= 10) {
+    cls = "note danger";
+    msg = `First decade of retirement (year <b class="acc">${-yearsToRet}</b>) — sequence risk is still live. ${modeTag} Keep the full cushion; the Q4 conversions below keep refilling it so you never sell into weakness.`;
+  } else {
+    cls = "note ok";
+    msg = `Past the high-risk window (${-yearsToRet} yrs into retirement). ${modeTag} You could ease toward an <b class="acc">${Math.round(recNow)}-month</b> buffer (${fmt(recAmt)}) and let a bit more stay invested, if your plan allows.`;
+  }
+  $("glideNote").className = cls;
+  $("glideNote").innerHTML = msg;
+}
+
+inputs.forEach(k => { $(k).addEventListener("input", compute); $(k).addEventListener("change", compute); });
+
+/* ---------- Google account connect (OAuth via Google Identity Services) ---------- */
+const BIRTHDAY_SCOPE = "https://www.googleapis.com/auth/user.birthday.read";
+let tokenClient = null;
+
+function gSetStatus(msg, kind) {
+  const el = $("gStatus");
+  el.className = "gstatus" + (kind ? " " + kind : "");
+  el.innerHTML = msg || "";
+}
+
+function getClientId() { return (localStorage.getItem("crp_gclient") || "").trim(); }
+
+function gInit() {
+  try { if ($("gOrigin")) $("gOrigin").textContent = location.origin; } catch (e) {}
+  const cid = getClientId();
+  if (cid) $("gClientId").value = cid;
+  const synced = localStorage.getItem("crp_gsynced");
+  if (synced) gSetStatus("✓ Last synced from Google on " + synced, "ok");
+  else if (!cid) gSetStatus('No Client ID yet — click <b>setup</b> to configure.', "");
+}
+
+function buildTokenClient(cid) {
+  if (!window.google || !google.accounts || !google.accounts.oauth2) return null;
+  return google.accounts.oauth2.initTokenClient({
+    client_id: cid,
+    scope: BIRTHDAY_SCOPE,
+    callback: onToken,
+    error_callback: (err) => {
+      gSetStatus("Sign-in cancelled or failed" + (err && err.type ? " (" + err.type + ")" : "") + ".", "err");
+      $("gBtn").disabled = false;
+    },
+  });
+}
+
+function onToken(resp) {
+  if (resp.error) {
+    gSetStatus("Authorization error: " + resp.error, "err");
+    $("gBtn").disabled = false;
+    return;
+  }
+  gSetStatus("Fetching birthday from People API…", "work");
+  fetch("https://people.googleapis.com/v1/people/me?personFields=birthdays", {
+    headers: { Authorization: "Bearer " + resp.access_token },
+  })
+    .then(r => r.json().then(j => ({ ok: r.ok, j })))
+    .then(({ ok, j }) => {
+      $("gBtn").disabled = false;
+      if (!ok) {
+        const m = (j.error && j.error.message) || "request failed";
+        gSetStatus("People API: " + m, "err");
+        return;
+      }
+      const bdays = j.birthdays || [];
+      // Prefer an entry that includes a year (and the ACCOUNT source if available).
+      let pick = bdays.find(b => b.date && b.date.year && b.metadata && b.metadata.source && b.metadata.source.type === "ACCOUNT")
+              || bdays.find(b => b.date && b.date.year)
+              || bdays[0];
+      if (!pick || !pick.date) { gSetStatus("No birthday is shared on this Google account.", "err"); return; }
+      const d = pick.date;
+      if (!d.year) { gSetStatus("Google returned month/day but no birth year — set it manually.", "err"); return; }
+      const iso = `${d.year}-${String(d.month).padStart(2,"0")}-${String(d.day).padStart(2,"0")}`;
+      $("dob").value = iso;
+      const stamp = `${MONTHS[TODAY.getMonth()]} ${TODAY.getDate()}, ${TODAY.getFullYear()}`;
+      localStorage.setItem("crp_gsynced", stamp);
+      compute();
+      const a = ageFromDob(iso);
+      gSetStatus(`✓ Synced from Google — born ${MONTHS[d.month-1]} ${d.day}, ${d.year}` + (a ? ` (age ${a.age})` : ""), "ok");
+      $("gBtnLabel").textContent = "Re-sync with Google";
+    })
+    .catch(e => { $("gBtn").disabled = false; gSetStatus("Network error: " + e.message, "err"); });
+}
+
+$("gSettings").addEventListener("click", (e) => {
+  e.preventDefault();
+  const p = $("gPanel");
+  p.hidden = !p.hidden;
+});
+
+$("gSave").addEventListener("click", () => {
+  const cid = $("gClientId").value.trim();
+  if (!cid || !/\.apps\.googleusercontent\.com$/.test(cid)) {
+    gSetStatus("That doesn't look like a Client ID (should end in .apps.googleusercontent.com).", "err");
+    return;
+  }
+  localStorage.setItem("crp_gclient", cid);
+  tokenClient = buildTokenClient(cid);
+  $("gPanel").hidden = true;
+  gSetStatus("Client ID saved. Click <b>Connect Google</b> to authorize.", "ok");
+});
+
+$("gBtn").addEventListener("click", () => {
+  const cid = getClientId();
+  if (!cid) { $("gPanel").hidden = false; gSetStatus("Add your OAuth Client ID first (steps below).", "work"); return; }
+  if (!window.google || !google.accounts) { gSetStatus("Google sign-in library still loading — try again in a moment.", "work"); return; }
+  if (!tokenClient) tokenClient = buildTokenClient(cid);
+  if (!tokenClient) { gSetStatus("Could not initialise Google sign-in.", "err"); return; }
+  $("gBtn").disabled = true;
+  gSetStatus("Opening Google sign-in…", "work");
+  tokenClient.requestAccessToken({ prompt: "consent" });
+});
+
+load();
+compute();
+gInit();
+</script>
+</body>
+</html>
