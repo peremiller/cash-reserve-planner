@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cash Reserve Planner</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg" />
 <script src="https://accounts.google.com/gsi/client" async></script>
 <style>
   :root {
@@ -33,7 +34,8 @@
     -webkit-font-smoothing: antialiased;
   }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
-  header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  header h1 { display:flex; align-items:center; gap:10px; font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  header h1 img { width:36px; height:36px; border-radius:9px; }
   header p { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
   .grid { display: grid; grid-template-columns: 320px 1fr; gap: 20px; align-items: start; }
   @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
@@ -147,7 +149,7 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Cash Reserve Planner</h1>
+    <h1><img src="favicon.svg" alt="" aria-hidden="true">Cash Reserve Planner</h1>
     <p>A layered liquidity plan: a 3-bucket cash reserve, a 24-month bear-market buffer, and an automatic Q4 cash-conversion schedule so you never sell within 12 months of need.</p>
   </header>
 
