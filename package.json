@@ -1,0 +1,10 @@
+{
+  "name": "cash-reserve-planner",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/prepare-offline-static.mjs && node scripts/offline/build.mjs --dir dist --name \"Cash Reserve Planner\" --spa --limits \"Calculations and locally saved scenarios work offline. Optional Google sign-in and birthday import require internet.\"",
+    "test:offline": "node --test scripts/offline/offline.test.mjs scripts/offline/client.test.mjs"
+  }
+}
