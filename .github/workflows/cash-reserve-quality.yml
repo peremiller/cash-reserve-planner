@@ -38,6 +38,6 @@ jobs:
       - name: Verify static assets and unchanged source
         run: |
           test -s dist/index.html
-          test -s dist/sw.js
+          test -s dist/offline-sw.js
           test -s dist/pera-bridge.js
           git diff --exit-code -- index.html pera-bridge.js favicon.svg
