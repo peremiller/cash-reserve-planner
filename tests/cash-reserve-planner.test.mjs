@@ -71,7 +71,7 @@ test('financial inputs and existing persistent data keys remain unchanged', () =
   assert.match(inlineScript, /const inputs = \["dob","retage","bufferBasis","spend","spendPeriod","assets","rungs","bufferSeparate"\]/);
   assert.match(inlineScript, /localStorage\.getItem\("crp"\)/);
   assert.match(inlineScript, /localStorage\.setItem\("crp", JSON\.stringify\(s\)\)/);
-  for (const id of ['runway','t-buffer','ladderBody','q4Body']) {
+  for (const id of ['t-runway','t-buffer','ladderBody','q4Body']) {
     assert.ok(html.includes('id="' + id + '"'), 'missing existing output ' + id);
   }
 });
