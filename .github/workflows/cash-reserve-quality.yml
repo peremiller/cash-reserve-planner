@@ -1,0 +1,43 @@
+name: Cash Reserve Planner Quality
+on:
+  push:
+    paths:
+      - "index.html"
+      - "pera-bridge.js"
+      - "favicon.svg"
+      - "package.json"
+      - "scripts/**"
+      - "tests/**"
+      - ".github/workflows/cash-reserve-quality.yml"
+  pull_request:
+    paths:
+      - "index.html"
+      - "pera-bridge.js"
+      - "favicon.svg"
+      - "package.json"
+      - "scripts/**"
+      - "tests/**"
+      - ".github/workflows/cash-reserve-quality.yml"
+permissions:
+  contents: read
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate planner and Pera bridge
+        run: node --test tests/*.test.mjs
+      - name: Run offline client regression tests
+        run: npm run test:offline
+      - name: Build canonical offline web app
+        run: npm run build
+      - name: Verify static assets and unchanged source
+        run: |
+          test -s dist/index.html
+          test -s dist/sw.js
+          test -s dist/pera-bridge.js
+          git diff --exit-code -- index.html pera-bridge.js favicon.svg
