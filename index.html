@@ -34,6 +34,12 @@
     -webkit-font-smoothing: antialiased;
   }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 28px 20px 80px; }
+  .skip-link { position: absolute; left: 16px; top: -80px; padding: 10px 14px; z-index: 10; color: #08111c; background: #fff; border-radius: 8px; }
+  .skip-link:focus { top: 12px; }
+  :where(a, button, input, select):focus-visible { outline: 3px solid #7cb8ff; outline-offset: 3px; }
+  @media (max-width: 380px) { .wrap { padding: 16px 12px 48px; } .card { padding: 13px; } }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
   header h1 { display:flex; align-items:center; gap:10px; font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
   header h1 img { width:36px; height:36px; border-radius:9px; }
   header p { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
@@ -147,7 +153,8 @@
 </style>
 </head>
 <body>
-<div class="wrap">
+<a class="skip-link" href="#main-content">Skip to planner</a>
+<main class="wrap" id="main-content" tabindex="-1">
   <header>
     <h1><img src="favicon.svg" alt="" aria-hidden="true">Cash Reserve Planner</h1>
     <p>A layered liquidity plan: a 3-bucket cash reserve, a 24-month bear-market buffer, and an automatic Q4 cash-conversion schedule so you never sell within 12 months of need.</p>
@@ -158,8 +165,8 @@
     <div class="card">
       <h2>Your Numbers</h2>
 
-      <label>Date of birth <span id="ageBadge" class="agebadge"></span></label>
-      <input type="date" id="dob" value="" max="2026-06-15" />
+      <label for="dob">Date of birth <span id="ageBadge" class="agebadge"></span></label>
+      <input type="date" id="dob" value="" aria-describedby="dobHint" />
       <div class="hint" id="dobHint">Enter your date of birth, or connect Google below to auto-detect it.</div>
 
       <div class="gconnect">
@@ -168,10 +175,10 @@
           <span id="gBtnLabel">Connect Google to auto-detect</span>
         </button>
         <a href="#" id="gSettings" class="glink">setup</a>
-        <div id="gStatus" class="gstatus"></div>
+        <div id="gStatus" class="gstatus" role="status" aria-live="polite" aria-atomic="true"></div>
 
         <div id="gPanel" class="gpanel" hidden>
-          <div class="gpanel-title">Google OAuth Client ID</div>
+          <label for="gClientId" class="gpanel-title">Google OAuth Client ID</label>
           <input type="text" id="gClientId" class="gclientid" placeholder="1234...apps.googleusercontent.com" autocomplete="off" spellcheck="false" />
           <button type="button" id="gSave" class="gsave">Save Client ID</button>
           <ol class="gsteps">
@@ -184,35 +191,36 @@
         </div>
       </div>
 
-      <label>Target retirement age</label>
+      <label for="retage">Target retirement age</label>
       <input type="number" id="retage" value="65" min="40" max="90" step="1" />
       <div class="hint" id="retHint">Drives years-to-retirement and the buffer glide path.</div>
 
-      <label>Bear-market buffer basis</label>
+      <label for="bufferBasis">Bear-market buffer basis</label>
       <select id="bufferBasis">
         <option value="fixed" selected>Fixed — always 24 months</option>
         <option value="age">Age-based — follow glide path</option>
       </select>
       <div class="hint">Fixed keeps your 24-month rule. Age-based sizes the actual buffer to your retirement horizon (the amber curve).</div>
 
-      <label>Spending</label>
+      <label for="spend">Spending</label>
       <div class="input-row">
         <span class="prefix">$</span>
         <input type="number" id="spend" value="5000" min="0" step="100" />
       </div>
+      <label for="spendPeriod" class="sr-only">Spending period</label>
       <select id="spendPeriod" style="margin-top:8px">
         <option value="month" selected>per month</option>
         <option value="year">per year</option>
       </select>
 
-      <label>Total reserve assets available</label>
+      <label for="assets">Total reserve assets available</label>
       <div class="input-row">
         <span class="prefix">$</span>
         <input type="number" id="assets" value="200000" min="0" step="1000" />
       </div>
       <div class="hint">The pool you're allocating across the three buckets.</div>
 
-      <label>T-bill ladder rungs</label>
+      <label for="rungs">T-bill ladder rungs</label>
       <select id="rungs">
         <option value="3">Quarterly (6 rungs · 3-mo apart)</option>
         <option value="1">Monthly (18 rungs)</option>
@@ -294,7 +302,7 @@
   </div>
 
   <div class="foot">All figures are illustrative planning estimates &mdash; not financial advice. Saved locally in your browser.</div>
-</div>
+</main>
 
 <script>
 const $ = id => document.getElementById(id);
@@ -303,7 +311,8 @@ const fmtK = n => {
   if (n >= 1000) return "$" + (n/1000).toFixed(n >= 100000 ? 0 : 1) + "k";
   return "$" + Math.round(n);
 };
-const TODAY = new Date(2026, 5, 15); // app context date: 2026-06-15
+const TODAY = new Date(); // Use the visitor’s current local date for age and Q4 schedules.
+$("dob").max = `${TODAY.getFullYear()}-${String(TODAY.getMonth() + 1).padStart(2, "0")}-${String(TODAY.getDate()).padStart(2, "0")}`;
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
 const inputs = ["dob","retage","bufferBasis","spend","spendPeriod","assets","rungs","bufferSeparate"];
@@ -320,8 +329,16 @@ function recBufferMonths(age, retAge) {
   return 18;
 }
 
+function isValidDob(dobStr) {
+  if (typeof dobStr !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(dobStr)) return false;
+  const [y,m,d] = dobStr.split("-").map(Number);
+  const date = new Date(0);
+  date.setFullYear(y, m - 1, d);
+  date.setHours(0, 0, 0, 0);
+  return y > 0 && date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d && date <= TODAY;
+}
 function ageFromDob(dobStr) {
-  if (!dobStr) return null;
+  if (!isValidDob(dobStr)) return null;
   const [y, m, d] = dobStr.split("-").map(Number);
   if (!y || !m || !d) return null;
   let age = TODAY.getFullYear() - y;
@@ -595,7 +612,7 @@ let tokenClient = null;
 function gSetStatus(msg, kind) {
   const el = $("gStatus");
   el.className = "gstatus" + (kind ? " " + kind : "");
-  el.innerHTML = msg || "";
+  el.textContent = msg || "";
 }
 
 function getClientId() { return (localStorage.getItem("crp_gclient") || "").trim(); }
@@ -606,7 +623,7 @@ function gInit() {
   if (cid) $("gClientId").value = cid;
   const synced = localStorage.getItem("crp_gsynced");
   if (synced) gSetStatus("✓ Last synced from Google on " + synced, "ok");
-  else if (!cid) gSetStatus('No Client ID yet — click <b>setup</b> to configure.', "");
+  else if (!cid) gSetStatus('No Client ID yet — click setup to configure.', "");
 }
 
 function buildTokenClient(cid) {
@@ -649,6 +666,7 @@ function onToken(resp) {
       const d = pick.date;
       if (!d.year) { gSetStatus("Google returned month/day but no birth year — set it manually.", "err"); return; }
       const iso = `${d.year}-${String(d.month).padStart(2,"0")}-${String(d.day).padStart(2,"0")}`;
+      if (!isValidDob(iso)) { gSetStatus("Google returned an invalid or future birth date. Please enter it manually.", "err"); return; }
       $("dob").value = iso;
       const stamp = `${MONTHS[TODAY.getMonth()]} ${TODAY.getDate()}, ${TODAY.getFullYear()}`;
       localStorage.setItem("crp_gsynced", stamp);
@@ -675,7 +693,7 @@ $("gSave").addEventListener("click", () => {
   localStorage.setItem("crp_gclient", cid);
   tokenClient = buildTokenClient(cid);
   $("gPanel").hidden = true;
-  gSetStatus("Client ID saved. Click <b>Connect Google</b> to authorize.", "ok");
+  gSetStatus("Client ID saved. Click Connect Google to authorize.", "ok");
 });
 
 $("gBtn").addEventListener("click", () => {
