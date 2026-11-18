@@ -75,3 +75,80 @@ test('financial inputs and existing persistent data keys remain unchanged', () =
     assert.ok(html.includes('id="' + id + '"'), 'missing existing output ' + id);
   }
 });
+
+
+function storageHarness({raw = null, readError = false, writeError = false} = {}) {
+  const ids = ['dob','retage','bufferBasis','spend','spendPeriod','assets','rungs','bufferSeparate'];
+  const nodes = Object.fromEntries(ids.map(id => [id, {type: id === 'bufferSeparate' ? 'checkbox' : 'text', value: '', checked: false}]));
+  nodes.storageStatus = {hidden: true, textContent: '', set innerHTML(_) { throw Error('unsafe HTML assignment'); }};
+  const writes = [];
+  const localStorage = {
+    getItem(key) { assert.equal(key, 'crp'); if (readError) throw Error('storage blocked'); return raw; },
+    setItem(key, value) { assert.equal(key, 'crp'); if (writeError) throw Error('quota exceeded'); writes.push(value); }
+  };
+  const source = 'const inputs = ' + JSON.stringify(ids) + '; const $ = id => nodes[id]; ' +
+    section('let plannerStorageWritable', 'function compute()') + ';({load,save})';
+  const app = vm.runInNewContext(source, {nodes, localStorage});
+  return {nodes, writes, app};
+}
+
+test('storage integrity: malformed saved record is neither replaced nor executed', () => {
+  const h = storageHarness({raw: '{"dob":"2026-01-01",'});
+  h.app.load();
+  h.nodes.spend.value = '4500';
+  h.app.save();
+  assert.equal(h.writes.length, 0, 'existing malformed record must not be overwritten');
+  assert.equal(h.nodes.spend.value, '4500', 'on-screen edits stay available');
+  assert.equal(h.nodes.storageStatus.hidden, false);
+  assert.match(h.nodes.storageStatus.textContent, /will not be overwritten/);
+  assert.doesNotMatch(h.nodes.storageStatus.textContent, /2026-01-01/);
+  assert.match(html, /id="storageStatus"[^>]*role="alert"[^>]*aria-live="assertive"/);
+});
+
+test('storage integrity: denied reads cannot destroy an unknown record', () => {
+  const h = storageHarness({readError: true});
+  h.app.load();
+  h.app.save();
+  assert.equal(h.writes.length, 0);
+  assert.equal(h.nodes.storageStatus.hidden, false);
+});
+
+test('storage integrity: quota failures keep values visible and announce unsaved state', () => {
+  const h = storageHarness({writeError: true});
+  h.app.load();
+  h.nodes.spend.value = '7100';
+  h.app.save();
+  h.app.save(); // no repeated destructive writes after first failure
+  assert.equal(h.nodes.spend.value, '7100');
+  assert.equal(h.writes.length, 0);
+  assert.match(h.nodes.storageStatus.textContent, /not saved/);
+});
+
+test('storage integrity: valid records retain unknown fields and save only known input values', () => {
+  const h = storageHarness({raw: JSON.stringify({spend: '6000', bufferSeparate: true, legacyNote: 'retain me', dob: {bad: true}})});
+  h.app.load();
+  assert.equal(h.nodes.spend.value, '6000');
+  assert.equal(h.nodes.bufferSeparate.checked, true);
+  assert.equal(h.nodes.dob.value, '', 'invalid saved object must not become an input value');
+  h.nodes.spend.value = '6100';
+  h.app.save();
+  const saved = JSON.parse(h.writes[0]);
+  assert.equal(saved.spend, '6100');
+  assert.equal(saved.legacyNote, 'retain me');
+  assert.equal(saved.bufferSeparate, true);
+});
+
+test('storage integrity: a new planner still saves defaults on first visit', () => {
+  const h = storageHarness();
+  h.app.load();
+  h.nodes.spend.value = '5000';
+  h.app.save();
+  assert.equal(JSON.parse(h.writes[0]).spend, '5000');
+  assert.equal(h.nodes.storageStatus.hidden, true);
+});
+
+test('Google client settings and sync timestamp handle unavailable localStorage without uncaught errors', () => {
+  assert.match(inlineScript, /function getClientId\(\) \{ try \{/);
+  assert.match(inlineScript, /try \{ localStorage\.setItem\("crp_gclient", cid\); \}/);
+  assert.match(inlineScript, /try \{ localStorage\.setItem\("crp_gsynced", stamp\); \}/);
+});
