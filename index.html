@@ -159,6 +159,7 @@
     <h1><img src="favicon.svg" alt="" aria-hidden="true">Cash Reserve Planner</h1>
     <p>A layered liquidity plan: a 3-bucket cash reserve, a 24-month bear-market buffer, and an automatic Q4 cash-conversion schedule so you never sell within 12 months of need.</p>
   </header>
+  <div id="storageStatus" class="note warn" role="alert" aria-live="assertive" hidden></div>
 
   <div class="grid">
     <!-- INPUTS -->
@@ -348,16 +349,45 @@ function ageFromDob(dobStr) {
   return { age, next };
 }
 
+let plannerStorageWritable = true;
+let originalPlannerRecord = {};
+function storageAlert(message) {
+  const status = $("storageStatus");
+  status.hidden = false;
+  status.textContent = message;
+}
 function load() {
   try {
-    const s = JSON.parse(localStorage.getItem("crp") || "{}");
-    for (const k in s) { const el = $(k); if (!el) continue; el.type === "checkbox" ? el.checked = s[k] : el.value = s[k]; }
-  } catch (e) {}
+    const raw = localStorage.getItem("crp");
+    if (raw === null) return;
+    const record = JSON.parse(raw);
+    if (!record || typeof record !== "object" || Array.isArray(record)) {
+      throw new Error("Saved planner data has an invalid format");
+    }
+    originalPlannerRecord = record;
+    inputs.forEach(k => {
+      if (!Object.prototype.hasOwnProperty.call(record, k)) return;
+      const el = $(k);
+      const value = record[k];
+      if (el.type === "checkbox" && typeof value === "boolean") el.checked = value;
+      else if (el.type !== "checkbox" && (typeof value === "string" || typeof value === "number")) el.value = String(value);
+    });
+  } catch (e) {
+    plannerStorageWritable = false;
+    storageAlert("Saved planner data could not be read. The existing record will not be overwritten. You can explore calculations, but changes cannot be saved until the storage issue is resolved.");
+  }
 }
 function save() {
-  const s = {};
+  if (!plannerStorageWritable) return;
+  const s = {...originalPlannerRecord};
   inputs.forEach(k => { const el = $(k); s[k] = el.type === "checkbox" ? el.checked : el.value; });
-  localStorage.setItem("crp", JSON.stringify(s));
+  try {
+    localStorage.setItem("crp", JSON.stringify(s));
+    originalPlannerRecord = s;
+  } catch (e) {
+    plannerStorageWritable = false;
+    storageAlert("Browser storage could not save your changes. Your current on-screen values remain available, but are not saved. Your previous stored record has not been deleted.");
+  }
 }
 
 function compute() {
@@ -615,13 +645,15 @@ function gSetStatus(msg, kind) {
   el.textContent = msg || "";
 }
 
-function getClientId() { return (localStorage.getItem("crp_gclient") || "").trim(); }
+function getClientId() { try { return (localStorage.getItem("crp_gclient") || "").trim(); } catch (e) { return ""; } }
 
 function gInit() {
   try { if ($("gOrigin")) $("gOrigin").textContent = location.origin; } catch (e) {}
   const cid = getClientId();
   if (cid) $("gClientId").value = cid;
-  const synced = localStorage.getItem("crp_gsynced");
+  let synced;
+  try { synced = localStorage.getItem("crp_gsynced"); }
+  catch (e) { gSetStatus("Browser storage is unavailable for Google settings.", "err"); return; }
   if (synced) gSetStatus("✓ Last synced from Google on " + synced, "ok");
   else if (!cid) gSetStatus('No Client ID yet — click setup to configure.', "");
 }
@@ -669,10 +701,11 @@ function onToken(resp) {
       if (!isValidDob(iso)) { gSetStatus("Google returned an invalid or future birth date. Please enter it manually.", "err"); return; }
       $("dob").value = iso;
       const stamp = `${MONTHS[TODAY.getMonth()]} ${TODAY.getDate()}, ${TODAY.getFullYear()}`;
-      localStorage.setItem("crp_gsynced", stamp);
+      let syncTimeSaved = true;
+      try { localStorage.setItem("crp_gsynced", stamp); } catch (e) { syncTimeSaved = false; }
       compute();
       const a = ageFromDob(iso);
-      gSetStatus(`✓ Synced from Google — born ${MONTHS[d.month-1]} ${d.day}, ${d.year}` + (a ? ` (age ${a.age})` : ""), "ok");
+      gSetStatus(`✓ Synced from Google — born ${MONTHS[d.month-1]} ${d.day}, ${d.year}` + (a ? ` (age ${a.age})` : "") + (!syncTimeSaved || !plannerStorageWritable ? " (Browser storage could not save the update)" : ""), !syncTimeSaved || !plannerStorageWritable ? "err" : "ok");
       $("gBtnLabel").textContent = "Re-sync with Google";
     })
     .catch(e => { $("gBtn").disabled = false; gSetStatus("Network error: " + e.message, "err"); });
@@ -690,7 +723,8 @@ $("gSave").addEventListener("click", () => {
     gSetStatus("That doesn't look like a Client ID (should end in .apps.googleusercontent.com).", "err");
     return;
   }
-  localStorage.setItem("crp_gclient", cid);
+  try { localStorage.setItem("crp_gclient", cid); }
+  catch (e) { gSetStatus("Browser storage blocked saving your Client ID. Your existing settings have not been changed.", "err"); return; }
   tokenClient = buildTokenClient(cid);
   $("gPanel").hidden = true;
   gSetStatus("Client ID saved. Click Connect Google to authorize.", "ok");
