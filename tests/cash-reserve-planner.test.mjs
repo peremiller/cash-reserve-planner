@@ -152,3 +152,31 @@ test('Google client settings and sync timestamp handle unavailable localStorage 
   assert.match(inlineScript, /try \{ localStorage\.setItem\("crp_gclient", cid\); \}/);
   assert.match(inlineScript, /try \{ localStorage\.setItem\("crp_gsynced", stamp\); \}/);
 });
+
+
+test('Google setup is a named expanded button with focus and panel state synchronized', () => {
+  assert.match(html, /<button type="button" id="gSettings" class="glink" aria-expanded="false" aria-controls="gPanel">setup<\/button>/);
+  assert.doesNotMatch(html, /<a href="#" id="gSettings"/);
+  const panel = {hidden: true};
+  const state = {attributes: {}, listeners: {}};
+  const settings = {
+    setAttribute(key, value) { state.attributes[key] = value; },
+    addEventListener(key, fn) { state.listeners[key] = fn; }
+  };
+  let focusCalls = 0;
+  const input = { focus() { focusCalls += 1; } };
+  const $ = id => ({gPanel: panel, gSettings: settings, gClientId: input})[id];
+  vm.runInNewContext(
+    section('function setGooglePanelOpen', '$("gSave").addEventListener'), {$});
+  assert.equal(typeof state.listeners.click, 'function');
+  state.listeners.click();
+  assert.equal(panel.hidden, false);
+  assert.equal(state.attributes['aria-expanded'], 'true');
+  assert.equal(focusCalls, 1);
+  state.listeners.click();
+  assert.equal(panel.hidden, true);
+  assert.equal(state.attributes['aria-expanded'], 'false');
+  assert.equal(focusCalls, 1, 'closing panel must not steal focus');
+  assert.match(inlineScript, /if \(!cid\) \{ setGooglePanelOpen\(true, true\);/);
+  assert.match(inlineScript, /setGooglePanelOpen\(false\);\s*gSetStatus\("Client ID saved/);
+});
