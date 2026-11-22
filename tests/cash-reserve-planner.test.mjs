@@ -161,13 +161,14 @@ test('Google setup is a named expanded button with focus and panel state synchro
   const state = {attributes: {}, listeners: {}};
   const settings = {
     setAttribute(key, value) { state.attributes[key] = value; },
-    addEventListener(key, fn) { state.listeners[key] = fn; }
+    addEventListener(key, fn) { state.listeners[key] = fn; },
+    focus() { state.triggerFocusCalls = (state.triggerFocusCalls || 0) + 1; }
   };
   let focusCalls = 0;
   const input = { focus() { focusCalls += 1; } };
   const $ = id => ({gPanel: panel, gSettings: settings, gClientId: input})[id];
-  vm.runInNewContext(
-    section('function setGooglePanelOpen', '$("gSave").addEventListener'), {$});
+  const setPanel = vm.runInNewContext(
+    section('function setGooglePanelOpen', '$("gSave").addEventListener') + '\nsetGooglePanelOpen', {$});
   assert.equal(typeof state.listeners.click, 'function');
   state.listeners.click();
   assert.equal(panel.hidden, false);
@@ -176,7 +177,13 @@ test('Google setup is a named expanded button with focus and panel state synchro
   state.listeners.click();
   assert.equal(panel.hidden, true);
   assert.equal(state.attributes['aria-expanded'], 'false');
-  assert.equal(focusCalls, 1, 'closing panel must not steal focus');
+  assert.equal(focusCalls, 1, 'closing panel by toggle must not steal focus');
+  assert.equal(state.triggerFocusCalls || 0, 0, 'toggle close leaves focus on the clicked trigger');
+  setPanel(true);
+  setPanel(false, false, true);
+  assert.equal(panel.hidden, true);
+  assert.equal(state.attributes['aria-expanded'], 'false');
+  assert.equal(state.triggerFocusCalls, 1, 'saving within hidden panel restores keyboard focus to trigger');
   assert.match(inlineScript, /if \(!cid\) \{ setGooglePanelOpen\(true, true\);/);
-  assert.match(inlineScript, /setGooglePanelOpen\(false\);\s*gSetStatus\("Client ID saved/);
+  assert.match(inlineScript, /setGooglePanelOpen\(false, false, true\);\s*gSetStatus\("Client ID saved/);
 });
