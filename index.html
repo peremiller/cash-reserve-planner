@@ -711,10 +711,12 @@ function onToken(resp) {
     .catch(e => { $("gBtn").disabled = false; gSetStatus("Network error: " + e.message, "err"); });
 }
 
-function setGooglePanelOpen(open, focusInput = false) {
+function setGooglePanelOpen(open, focusInput = false, returnFocus = false) {
   $("gPanel").hidden = !open;
   $("gSettings").setAttribute("aria-expanded", String(open));
   if (open && focusInput) $("gClientId").focus();
+  // Saving from within the now-hidden panel must return keyboard focus to its trigger.
+  if (!open && returnFocus) $("gSettings").focus();
 }
 
 $("gSettings").addEventListener("click", () => {
@@ -730,7 +732,7 @@ $("gSave").addEventListener("click", () => {
   try { localStorage.setItem("crp_gclient", cid); }
   catch (e) { gSetStatus("Browser storage blocked saving your Client ID. Your existing settings have not been changed.", "err"); return; }
   tokenClient = buildTokenClient(cid);
-  setGooglePanelOpen(false);
+  setGooglePanelOpen(false, false, true);
   gSetStatus("Client ID saved. Click Connect Google to authorize.", "ok");
 });
 
