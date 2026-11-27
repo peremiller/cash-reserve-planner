@@ -6,13 +6,13 @@ const source=readFileSync('pera-bridge.js','utf8'),PERA='https://pera-compass.aj
 function harness(saved,grant,{removeFailure=false,writeFailure=false}={}){
  let removalBlocked=removeFailure, writeBlocked=writeFailure;
  const values=new Map();if(saved)values.set('crp',JSON.stringify(saved));if(grant)values.set('pera-bridge-approval:v1',JSON.stringify({origin:PERA,source:'reserve',currency:'USD'}));
- const listeners={},messages=[],nodes=[];
- const make=tag=>{const e={tag,style:{},hidden:false,textContent:'',events:{},setAttribute(){},addEventListener(t,f){this.events[t]=f},append(...children){this.children=children},prepend(){}};nodes.push(e);return e};
+ const listeners={},messages=[],nodes=[]; let focused=null;
+ const make=tag=>{const e={tag,style:{},hidden:false,textContent:'',events:{},setAttribute(){},addEventListener(t,f){this.events[t]=f},append(...children){this.children=children},prepend(){},focus(){focused=this}};nodes.push(e);return e};
  const fields=Object.fromEntries(['spend','spendPeriod','assets','t-buffersub'].map(k=>[k,make('input')]));fields['t-buffersub'].textContent='24 months · fixed rule';
  const opener={postMessage:(m,o)=>messages.push({m,o})},window={opener,addEventListener(t,f){listeners[t]=f}};window.top=window;
  const localStorage={getItem:k=>values.get(k)||null,setItem:(k,v)=>{if(writeBlocked==='throw')throw Error('storage denied');if(writeBlocked==='silent')return;values.set(k,v)},removeItem:k=>{if(removalBlocked==='throw')throw Error('storage denied');if(removalBlocked==='silent')return;values.delete(k)}};
  vm.runInNewContext(source,{window,document:{getElementById:id=>fields[id],createElement:make,body:{prepend(){}}},localStorage,Date,Number,Object,Array,String});
- return {messages,values,fields,nodes,window,setRemovalBlocked(v){removalBlocked=v},setWriteBlocked(v){writeBlocked=v},request(origin=PERA,target=opener,id='request-1234'){listeners.message({origin,source:target,data:{type:'pera-finance:request',version:1,requestId:id}})},click(text){nodes.find(n=>n.textContent===text).events.click()}};
+ return {messages,values,fields,nodes,window,get focused(){return focused},setRemovalBlocked(v){removalBlocked=v},setWriteBlocked(v){writeBlocked=v},request(origin=PERA,target=opener,id='request-1234'){listeners.message({origin,source:target,data:{type:'pera-finance:request',version:1,requestId:id}})},click(text){nodes.find(n=>n.textContent===text).events.click()}};
 }
 test('wrong origin, wrong source, iframe and invalid request IDs never export',()=>{for(const mode of ['origin','source','frame','id']){const h=harness({spend:'6000',assets:'200000'},true);if(mode==='frame')h.window.top={};h.request(mode==='origin'?'https://evil.test':PERA,mode==='source'?{}:h.window.opener,mode==='id'?'bad':'request-1234');assert.equal(h.messages.length,0)}});
 test('a source user must approve before first data disclosure',()=>{const h=harness({spend:'6000',spendPeriod:'month',assets:'200000'});h.request();assert.equal(h.messages[0].m.status,'consent-required');assert.equal(h.messages[0].m.payload,undefined);h.click('Connect USD assumptions to Pera Compass');const m=h.messages.at(-1).m;assert.equal(m.type,'pera-finance:snapshot');assert.equal(m.payload.reserve.monthly,6000);assert.equal(m.payload.reserve.currency,'USD');assert.equal(m.payload.assetAssumption,null)});
@@ -56,4 +56,13 @@ test('failed consent write never reports connection or discloses a snapshot; ret
   h.setWriteBlocked(false);h.click('Connect USD assumptions to Pera Compass');
   assert.equal(h.messages.at(-1).m.type,'pera-finance:snapshot');
  }
+});
+
+
+test('connection and disconnection move focus to the newly visible control',()=>{
+ const h=harness({spend:'9000',spendPeriod:'month',assets:'250000'},false);
+ h.request();h.click('Connect USD assumptions to Pera Compass');
+ assert.equal(h.focused.textContent,'Disconnect Pera Compass');assert.equal(h.focused.hidden,false);
+ h.click('Disconnect Pera Compass');
+ assert.equal(h.focused.textContent,'Connect USD assumptions to Pera Compass');assert.equal(h.focused.hidden,false);
 });
