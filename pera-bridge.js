@@ -10,7 +10,7 @@
   let panel, status, connectButton, revokeButton;
   const storage = {
     read(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } },
-    write(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; } },
+    write(key, value) { try { const serialized = JSON.stringify(value); localStorage.setItem(key, serialized); return localStorage.getItem(key) === serialized; } catch { return false; } },
     remove(key) { try { localStorage.removeItem(key); return localStorage.getItem(key) === null; } catch { return false; } },
   };
   const approved = () => {
