@@ -83,7 +83,7 @@
           status.textContent = 'This browser could not save connection permission. No data was shared.'; return;
         }
         sharingSuspended = false;
-        connectButton.hidden = true; revokeButton.hidden = false; respond();
+        connectButton.hidden = true; revokeButton.hidden = false; revokeButton.focus(); respond();
       });
       revokeButton = document.createElement('button');
       revokeButton.type = 'button'; revokeButton.textContent = 'Disconnect Pera Compass';
@@ -98,7 +98,7 @@
           return;
         }
         sharingSuspended = false;
-        connectButton.hidden = false; revokeButton.hidden = true;
+        connectButton.hidden = false; revokeButton.hidden = true; connectButton.focus();
         status.textContent = 'Disconnected. This app will not share new assumptions with Pera Compass. Previously imported snapshots must be removed in Pera Compass.';
         pending?.target.postMessage({ type: 'pera-finance:status', version: 1, requestId: pending.requestId, source: 'reserve', status: 'revoked' }, PERA);
       });
