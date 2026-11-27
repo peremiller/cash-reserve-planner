@@ -5,13 +5,16 @@
   const GRANT = 'pera-bridge-approval:v1';
   const EDITED = 'crp:financial-inputs-edited:v1';
   let pending = null;
+  // If a permission cannot be erased, fail closed for the lifetime of this tab.
+  let sharingSuspended = false;
   let panel, status, connectButton, revokeButton;
   const storage = {
     read(key) { try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; } },
-    write(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); return true; } catch { return false; } },
-    remove(key) { try { localStorage.removeItem(key); } catch {} },
+    write(key, value) { try { const serialized = JSON.stringify(value); localStorage.setItem(key, serialized); return localStorage.getItem(key) === serialized; } catch { return false; } },
+    remove(key) { try { localStorage.removeItem(key); return localStorage.getItem(key) === null; } catch { return false; } },
   };
   const approved = () => {
+    if (sharingSuspended) return false;
     const grant = storage.read(GRANT);
     return grant?.origin === PERA && grant.source === 'reserve' && grant.currency === 'USD';
   };
@@ -79,20 +82,31 @@
         if (!storage.write(GRANT, { origin: PERA, source: 'reserve', currency: 'USD' })) {
           status.textContent = 'This browser could not save connection permission. No data was shared.'; return;
         }
-        connectButton.hidden = true; revokeButton.hidden = false; respond();
+        sharingSuspended = false;
+        connectButton.hidden = true; revokeButton.hidden = false; revokeButton.focus(); respond();
       });
       revokeButton = document.createElement('button');
       revokeButton.type = 'button'; revokeButton.textContent = 'Disconnect Pera Compass';
       revokeButton.style.cssText = connectButton.style.cssText;
       revokeButton.addEventListener('click', () => {
-        storage.remove(GRANT); connectButton.hidden = false; revokeButton.hidden = true;
+        // Block new snapshots immediately even if persistent storage is unavailable.
+        sharingSuspended = true;
+        if (!storage.remove(GRANT)) {
+          connectButton.hidden = true; revokeButton.hidden = false;
+          status.textContent = 'Sharing is suspended in this tab, but browser storage could not remove the saved permission. Reopen this page and disconnect again when storage works; a future tab may still have the old permission.';
+          pending?.target.postMessage({ type: 'pera-finance:status', version: 1, requestId: pending.requestId, source: 'reserve', status: 'consent-required' }, PERA);
+          return;
+        }
+        sharingSuspended = false;
+        connectButton.hidden = false; revokeButton.hidden = true; connectButton.focus();
         status.textContent = 'Disconnected. This app will not share new assumptions with Pera Compass. Previously imported snapshots must be removed in Pera Compass.';
         pending?.target.postMessage({ type: 'pera-finance:status', version: 1, requestId: pending.requestId, source: 'reserve', status: 'revoked' }, PERA);
       });
       panel.append(status, connectButton, revokeButton); document.body.prepend(panel);
     }
-    connectButton.hidden = approved(); revokeButton.hidden = !approved();
-    if (!approved()) status.textContent = 'Pera Compass requests your saved reserve assumptions. This source uses USD ($), not PHP. Connecting shares only edited spending, target months, and reserve-asset assumptions—not your birthday, Google identity, or tokens. It never changes your records or converts currency.';
+    connectButton.hidden = sharingSuspended || approved(); revokeButton.hidden = !sharingSuspended && !approved();
+    if (sharingSuspended) status.textContent = 'Sharing is suspended in this tab, but saved permission could not be removed. Retry Disconnect when storage works; a future tab may still use the old permission.';
+    else if (!approved()) status.textContent = 'Pera Compass requests your saved reserve assumptions. This source uses USD ($), not PHP. Connecting shares only edited spending, target months, and reserve-asset assumptions—not your birthday, Google identity, or tokens. It never changes your records or converts currency.';
   }
   window.addEventListener('message', event => {
     // The first-party source popup is the only bridge surface. No arbitrary
